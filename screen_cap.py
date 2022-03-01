@@ -16,7 +16,7 @@ from torchvision import transforms
 
 #create screening capturing tool
 d = d3dshot.create("numpy")
-d.display = d.displays[1]
+d.display = d.displays[0]
 RGBtoBGR = [2, 1, 0]
 
 target_width = 1280

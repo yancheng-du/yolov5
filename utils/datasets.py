@@ -16,6 +16,7 @@ from multiprocessing.pool import Pool, ThreadPool
 from pathlib import Path
 from threading import Thread
 from zipfile import ZipFile
+import d3dshot
 
 import cv2
 import numpy as np
@@ -363,6 +364,77 @@ class LoadStreams:
         img = img[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
         img = np.ascontiguousarray(img)
 
+        return self.sources, img, img0, None, ''
+
+    def __len__(self):
+        return len(self.sources)  # 1E12 frames = 32 streams at 30 FPS for 30 years
+
+class LoadScreen:
+    # YOLOv5 streamloader, i.e. `python detect.py --source 'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP streams`
+    def __init__(self, source='screen', img_size=640, stride=32, auto=True):
+        self.mode = 'stream'
+        self.img_size = img_size
+        self.stride = stride
+        self.d = None
+        n = 1
+        self.imgs, self.fps, self.frames, self.threads = [None]*n, [0]*n, [0]*n, [None]*n
+        self.sources = [clean_str(x) for x in source]  # clean source names for later
+        self.auto = auto
+        # Start thread to read frames from video stream
+        st = f'{1}/{n}: {source}... '
+    
+        self.d = d3dshot.create("numpy")
+        self.d.display = self.d.displays[1]
+    
+        self.frames[0] = float('inf')  # infinite stream fallback
+        self.fps[0] = 30  # 30 FPS fallback
+    
+        self.imgs[0] = self.d.screenshot()  # guarantee first frame
+        w = self.imgs[0].shape[1]
+        h = self.imgs[0].shape[0]
+        self.threads[0] = Thread(target=self.update, args=([0, self.d, source]), daemon=True)
+        LOGGER.info(f"{st} Success ({self.frames[0]} frames {w}x{h} at {self.fps[0]:.2f} FPS)")
+        self.threads[0].start()
+        LOGGER.info('')  # newline
+    
+        # check for common shapes
+        s = np.stack([letterbox(x, self.img_size, stride=self.stride, auto=self.auto)[0].shape for x in self.imgs])
+        self.rect = np.unique(s, axis=0).shape[0]==1  # rect inference if all shapes equal
+        if not self.rect:
+            LOGGER.warning(
+                'WARNING: Stream shapes differ. For optimal performance supply similarly-shaped streams.')
+
+    def update(self, i, d, stream):
+        # Read stream `i` frames in daemon thread
+        n, f, read = 0, self.frames[i], 1  # frame number, frame array, inference every 'read' frame
+        while n<f:
+            n += 1
+            self.imgs[i] = d.screenshot()
+        # time.sleep(1/self.fps[i])  # wait time
+
+    def __iter__(self):
+        self.count = -1
+        return self
+
+    def __next__(self):
+        self.count += 1
+        if not all(x.is_alive() for x in self.threads) or cv2.waitKey(1)==ord('q'):  # q to quit
+            cv2.destroyAllWindows()
+            raise StopIteration
+    
+        # Letterbox
+        img0 = self.imgs.copy()
+        img = [letterbox(x, self.img_size, stride=self.stride, auto=self.rect and self.auto)[0] for x in img0]
+    
+        # Stack
+        img = np.stack(img, 0)
+    
+        # Convert
+    
+    
+        img = img[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
+        img = np.ascontiguousarray(img)
+    
         return self.sources, img, img0, None, ''
 
     def __len__(self):

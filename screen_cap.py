@@ -136,5 +136,7 @@ while True:
 	if cv2.waitKey(1)&0xFF==ord('q') or n>1000:
 		break
 		
+
 print("screen_shot_time = {}\npre_processing_time = {}\nprediction_time = {}\npost_processing_time = {}\nmouse_move_time = {}".format(screen_shot_time,preprocessing_time,prediction_time,post_processing_time,mouse_move_time))
 print('total_time = {}'.format(screen_shot_time+preprocessing_time+prediction_time+post_processing_time+mouse_move_time))
+
